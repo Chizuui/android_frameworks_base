@@ -31,6 +31,7 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.media.AudioManager;
+import android.nfc.NfcAdapter;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
@@ -47,6 +48,7 @@ import com.android.internal.statusbar.StatusBarIcon;
 import com.android.systemui.broadcast.BroadcastDispatcher;
 import com.android.systemui.common.shared.model.Icon;
 import com.android.systemui.dagger.qualifiers.DisplayId;
+import com.android.systemui.dagger.qualifiers.Application;
 import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.dagger.qualifiers.UiBackground;
 import com.android.systemui.display.domain.interactor.ConnectedDisplayInteractor;
@@ -124,6 +126,7 @@ public class PhoneStatusBarPolicy
     private final String mSlotSensorsOff;
     private final String mSlotScreenRecord;
     private final String mSlotConnectedDisplay;
+    private final String mSlotNfc;
     private final int mDisplayId;
     private final SharedPreferences mSharedPreferences;
     private final DateFormatUtil mDateFormatUtil;
@@ -165,10 +168,12 @@ public class PhoneStatusBarPolicy
     private boolean mProfileIconVisible = false;
 
     private BluetoothController mBluetooth;
+    private NfcAdapter mNfcAdapter;
     private AlarmManager.AlarmClockInfo mNextAlarm;
 
     @Inject
-    public PhoneStatusBarPolicy(StatusBarIconController iconController,
+    public PhoneStatusBarPolicy(@Application Context context,
+            StatusBarIconController iconController,
             CommandQueue commandQueue, BroadcastDispatcher broadcastDispatcher,
             @Main Executor mainExecutor, @UiBackground Executor uiBgExecutor, @Main Looper looper,
             @Main Resources resources,
@@ -241,6 +246,8 @@ public class PhoneStatusBarPolicy
         mSlotSensorsOff = resources.getString(com.android.internal.R.string.status_bar_sensors_off);
         mSlotScreenRecord = resources.getString(
                 com.android.internal.R.string.status_bar_screen_record);
+        mSlotNfc = resources.getString(com.android.internal.R.string.status_bar_nfc);
+        mNfcAdapter = NfcAdapter.getDefaultAdapter(context);
 
         mDisplayId = displayId;
         mSharedPreferences = sharedPreferences;
@@ -260,6 +267,7 @@ public class PhoneStatusBarPolicy
         filter.addAction(Intent.ACTION_PROFILE_REMOVED);
         filter.addAction(Intent.ACTION_PROFILE_ACCESSIBLE);
         filter.addAction(Intent.ACTION_PROFILE_INACCESSIBLE);
+        filter.addAction(NfcAdapter.ACTION_ADAPTER_STATE_CHANGED);
         mBroadcastDispatcher.registerReceiverWithHandler(mIntentReceiver, filter, mHandler);
         Observer<Integer> observer = ringer -> mHandler.post(this::updateVolumeZen);
 
@@ -271,6 +279,10 @@ public class PhoneStatusBarPolicy
 
         // TTY status
         updateTTY();
+
+        mIconController.setIcon(mSlotNfc, R.drawable.stat_sys_nfc,
+                mResources.getString(R.string.quick_settings_nfc_label));
+        updateNfc();
 
         // bluetooth status
         updateBluetooth();
@@ -510,6 +522,12 @@ public class PhoneStatusBarPolicy
 
         mIconController.setIcon(mSlotBluetooth, iconId, contentDescription);
         mIconController.setIconVisibility(mSlotBluetooth, bluetoothVisible);
+    }
+
+    private void updateNfc() {
+        boolean enabled = mNfcAdapter != null
+                && mNfcAdapter.getAdapterState() == NfcAdapter.STATE_ON;
+        mIconController.setIconVisibility(mSlotNfc, enabled);
     }
 
     private final void updateTTY() {
@@ -767,6 +785,9 @@ public class PhoneStatusBarPolicy
                     break;
                 case AudioManager.ACTION_HEADSET_PLUG:
                     updateHeadsetPlug(intent);
+                    break;
+                case NfcAdapter.ACTION_ADAPTER_STATE_CHANGED:
+                    updateNfc();
                     break;
             }
         }
