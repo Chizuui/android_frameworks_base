@@ -39,6 +39,7 @@ import com.android.systemui.shade.display.StatusBarTouchShadeDisplayPolicy
 import com.android.systemui.shade.display.domain.interactor.ShadeExpansionTargetDisplayInteractor
 import com.android.systemui.shade.domain.interactor.PanelExpansionInteractor
 import com.android.systemui.shade.domain.interactor.ShadeModeInteractor
+import com.android.systemui.shade.QQSGestureListener
 import com.android.systemui.statusbar.core.StatusBarEventForwardingModernization
 import com.android.systemui.statusbar.data.repository.StatusBarConfigurationController
 import com.android.systemui.statusbar.gesture.StatusBarLongPressGestureDetector
@@ -86,6 +87,7 @@ private constructor(
     private val shadeExpansionTargetDisplayInteractor: ShadeExpansionTargetDisplayInteractor,
     private val lazyShadeDisplaysRepository: Lazy<ShadeDisplaysRepository>,
     private val statusBarWindowControllerStore: StatusBarWindowControllerStore,
+    private val qqsGestureListener: QQSGestureListener,
 ) : ViewController<PhoneStatusBarView>(view) {
 
     private lateinit var clock: Clock
@@ -94,6 +96,13 @@ private constructor(
 
     private val shadeInvocationSplitRatio: Float =
         resources.getFloat(R.dimen.config_invocationGestureSplitRatio)
+
+    /**
+     * Handles DT2S on the collapsed status bar when Scene Container owns
+     * status bar touch forwarding.
+     */
+    private val qqsGestureDetector =
+        GestureDetector(mView.context, qqsGestureListener)
 
     // Creates a [View.OnTouchListener] that only handles mouse click events.
     private fun createMouseClickListener(onClick: () -> Unit): View.OnTouchListener =
@@ -334,6 +343,13 @@ private constructor(
         override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
             StatusBarEventForwardingModernization.assertInLegacyMode()
 
+            // With Scene Container enabled, status bar touches are routed directly
+            // to WindowRootView and bypass the legacy shade gesture path.
+            // Feed them to QQSGestureListener here so DT2S still works.
+            if (SceneContainerFlag.isEnabled) {
+                qqsGestureDetector.onTouchEvent(event)
+            }
+
             if (event.action == MotionEvent.ACTION_DOWN) {
                 dispatchEventToShadeDisplayPolicy(event)
             }
@@ -463,7 +479,8 @@ private constructor(
         private val shadeExpansionTargetDisplayInteractor: ShadeExpansionTargetDisplayInteractor,
         private val lazyShadeDisplaysRepository: Lazy<ShadeDisplaysRepository>,
         private val statusBarWindowControllerStore: StatusBarWindowControllerStore,
-    ) {
+            private val qqsGestureListener: QQSGestureListener,
+) {
         fun create(view: PhoneStatusBarView): PhoneStatusBarViewController {
             return PhoneStatusBarViewController(
                 view,
@@ -488,7 +505,9 @@ private constructor(
                 shadeExpansionTargetDisplayInteractor,
                 lazyShadeDisplaysRepository,
                 statusBarWindowControllerStore,
-            )
+            
+                qqsGestureListener,
+)
         }
     }
 }
