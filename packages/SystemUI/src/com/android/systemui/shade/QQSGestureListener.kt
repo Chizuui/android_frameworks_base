@@ -59,31 +59,21 @@ class QQSGestureListener @Inject constructor(
                 com.android.internal.R.dimen.quick_qs_offset_height)
     }
 
-
     override fun onDoubleTapEvent(e: MotionEvent): Boolean {
-        if (e.actionMasked == MotionEvent.ACTION_UP) {
-            val falsing = falsingManager.isFalseDoubleTap} " +
-                    "bouncer=${centralSurfaces.isBouncerShowing()} " +
-                    "falsing=$falsing"
-            )
-
-            if (
+        // Go to sleep when double tapping the QQS status bar
+        // or lockscreen (keyguard showing, but not bouncer)
+        if (
+            e.actionMasked == MotionEvent.ACTION_UP &&
                 !statusBarStateController.isDozing &&
-                    doubleTapToSleepEnabled &&
-                    (
-                        e.y < quickQsOffsetHeight ||
-                            (
-                                statusBarStateController.getState() == StatusBarState.KEYGUARD &&
-                                    !centralSurfaces.isBouncerShowing()
-                            )
-                    ) &&
-                    !falsingManager.isFalseDoubleTap
-            ) {
-                powerManager.goToSleep(e.eventTime)
-                return true
-            }
+                doubleTapToSleepEnabled &&
+                (e.getY() < quickQsOffsetHeight ||
+                    statusBarStateController.getState() == StatusBarState.KEYGUARD &&
+                        !centralSurfaces.isBouncerShowing()) &&
+                !falsingManager.isFalseDoubleTap
+        ) {
+            powerManager.goToSleep(e.getEventTime())
+            return true
         }
-
         return false
     }
 
