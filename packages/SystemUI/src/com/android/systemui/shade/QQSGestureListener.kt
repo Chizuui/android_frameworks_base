@@ -20,6 +20,7 @@ import android.content.Context
 import android.database.ContentObserver
 import android.os.PowerManager
 import android.provider.Settings;
+import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import com.android.systemui.dagger.SysUISingleton
@@ -48,6 +49,11 @@ class QQSGestureListener @Inject constructor(
                         context.contentResolver, Settings.Secure.DOUBLE_TAP_TO_SLEEP,
                         if (context.resources.getBoolean(com.android.internal.
                                 R.bool.config_dt2sGestureEnabledByDefault)) 1 else 0) != 0
+
+                Log.e(
+                    "DT2S",
+                    "QQS setting changed: enabled=$doubleTapToSleepEnabled"
+                )
             }
         }
         context.contentResolver.registerContentObserver(
@@ -59,21 +65,46 @@ class QQSGestureListener @Inject constructor(
                 com.android.internal.R.dimen.quick_qs_offset_height)
     }
 
+    override fun onDoubleTap(e: MotionEvent): Boolean {
+        Log.e(
+            "DT2S",
+            "QQS onDoubleTap: y=${e.y}, limit=$quickQsOffsetHeight"
+        )
+        return true
+    }
+
     override fun onDoubleTapEvent(e: MotionEvent): Boolean {
-        // Go to sleep when double tapping the QQS status bar
-        // or lockscreen (keyguard showing, but not bouncer)
-        if (
-            e.actionMasked == MotionEvent.ACTION_UP &&
+        if (e.actionMasked == MotionEvent.ACTION_UP) {
+            val falsing = falsingManager.isFalseDoubleTap
+
+            Log.e(
+                "DT2S",
+                "QQS onDoubleTapEvent: enabled=$doubleTapToSleepEnabled " +
+                    "dozing=${statusBarStateController.isDozing} " +
+                    "y=${e.y} limit=$quickQsOffsetHeight " +
+                    "state=${statusBarStateController.getState()} " +
+                    "bouncer=${centralSurfaces.isBouncerShowing()} " +
+                    "falsing=$falsing"
+            )
+
+            if (
                 !statusBarStateController.isDozing &&
-                doubleTapToSleepEnabled &&
-                (e.getY() < quickQsOffsetHeight ||
-                    statusBarStateController.getState() == StatusBarState.KEYGUARD &&
-                        !centralSurfaces.isBouncerShowing()) &&
-                !falsingManager.isFalseDoubleTap
-        ) {
-            powerManager.goToSleep(e.getEventTime())
-            return true
+                    doubleTapToSleepEnabled &&
+                    (
+                        e.y < quickQsOffsetHeight ||
+                            (
+                                statusBarStateController.getState() == StatusBarState.KEYGUARD &&
+                                    !centralSurfaces.isBouncerShowing()
+                            )
+                    ) &&
+                    !falsing
+            ) {
+                Log.e("DT2S", "QQS going to sleep")
+                powerManager.goToSleep(e.eventTime)
+                return true
+            }
         }
+
         return false
     }
 
