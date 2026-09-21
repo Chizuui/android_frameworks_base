@@ -343,13 +343,6 @@ private constructor(
         override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
             StatusBarEventForwardingModernization.assertInLegacyMode()
 
-            // With Scene Container enabled, status bar touches are routed directly
-            // to WindowRootView and bypass the legacy shade gesture path.
-            // Feed them to QQSGestureListener here so DT2S still works.
-            if (SceneContainerFlag.isEnabled) {
-                qqsGestureDetector.onTouchEvent(event)
-            }
-
             if (event.action == MotionEvent.ACTION_DOWN) {
                 dispatchEventToShadeDisplayPolicy(event)
             }
@@ -394,6 +387,11 @@ private constructor(
             StatusBarEventForwardingModernization.assertInLegacyMode()
 
             onTouch(event)
+
+            // Feed the complete status bar touch sequence to DT2S.
+            if (SceneContainerFlag.isEnabled) {
+                qqsGestureDetector.onTouchEvent(event)
+            }
 
             // If panels aren't enabled, ignore the gesture and don't pass it down to the
             // panel view.
